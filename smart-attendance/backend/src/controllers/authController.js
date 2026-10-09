@@ -46,10 +46,21 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check karein user email se exist karta hai (aur explicitly password mangwayein)
+    console.log("EMAIL:", email);
+    console.log("PASSWORD:", password);
+
     const user = await User.findOne({ email }).select('+password');
 
-    // Email check + Match Password method execution
+    console.log("USER FOUND:", !!user);
+
+    if (user) {
+      console.log("DB PASSWORD:", user.password);
+
+      const isMatch = await user.matchPassword(password);
+
+      console.log("PASSWORD MATCH:", isMatch);
+    }
+
     if (user && (await user.matchPassword(password))) {
       const token = generateToken(res, user._id);
 
@@ -61,13 +72,18 @@ export const loginUser = async (req, res) => {
         token,
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({
+        message: 'Invalid email or password'
+      });
     }
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({
+      message: error.message
+    });
   }
 };
-
 // @desc    Get current user profile
 // @route   GET /api/auth/me
 // @access  Private
