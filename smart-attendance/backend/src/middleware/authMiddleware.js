@@ -1,32 +1,26 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
-// 1. Protect Middleware: Check karta hai ki User logged in hai ya nahi
 export const protect = async (req, res, next) => {
   let token;
 
-  // Header me check karein: Authorization: Bearer <TOKEN>
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
     try {
-      // 'Bearer ' ke baad wala actual token alag karte hain
       token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret123');
 
-      // Token verify karte hain secret key se
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Token se User find karke req.user me attach kar dete hain (Password ko chhodkar)
-      req.user = await User.findById(decoded.userId).select('-password');
-
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not found / Invalid Token' });
+      const user = await User.findById(decoded.id).select('-password');
+      if (!user) {
+        return res.status(401).json({ message: 'User no longer exists' });
       }
 
-      next(); // Agle step par bhejo
+      req.user = user;
+      return next();
     } catch (error) {
-      console.error('Token verification failed:', error.message);
+      console.error('JWT Verification Error:', error.message);
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }
@@ -36,11 +30,15 @@ export const protect = async (req, res, next) => {
   }
 };
 
-// 2. Admin Middleware: Check karta hai ki user ADMIN hai ya nahi
-export const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'ADMIN') {
+export const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `User role ${req.user?.role} is not authorized to access this route`,
+      });
+    }
     next();
-  } else {
-    res.status(403).json({ message: 'Access denied: Admin rights required' });
-  }
+  };
 };
+
+export const admin = authorize('ADMIN');

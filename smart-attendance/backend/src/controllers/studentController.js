@@ -50,6 +50,7 @@ export const getStudents = async (req, res) => {
 
     res.json(students);
   } catch (error) {
+    console.error("Get Students Error:", error.message);
     res.status(500).json({ message: error.message });
   }
 };

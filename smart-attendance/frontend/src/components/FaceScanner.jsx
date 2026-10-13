@@ -11,11 +11,10 @@ const FaceScanner = ({ onFaceDetected, isProcessing }) => {
   const canvasRef = useRef(null);
   const scanIntervalRef = useRef(null);
 
-  // 1. Load Neural Network Models on Mount
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const MODEL_URL = '/models'; // Public folder path
+        const MODEL_URL = '/models';
         await Promise.all([
           faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -36,24 +35,21 @@ const FaceScanner = ({ onFaceDetected, isProcessing }) => {
     };
   }, []);
 
-  // 2. Continuous Face Detection & Feature Extraction Loop
   const handleVideoReady = (videoNode) => {
     videoElementRef.current = videoNode;
     setStatusMessage('Position your face clearly inside the camera frame.');
 
     if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
 
-    // Scan every 200ms
     scanIntervalRef.current = setInterval(async () => {
+      // Direct return if server request is in-flight or camera missing
       if (!videoElementRef.current || isProcessing) return;
 
-      // Detect all faces with landmarks and 128-D descriptors
       const detections = await faceapi
         .detectAllFaces(videoElementRef.current)
         .withFaceLandmarks()
         .withFaceDescriptors();
 
-      // UI Overlay Canvas Handling
       if (canvasRef.current && videoElementRef.current) {
         const displaySize = {
           width: videoElementRef.current.videoWidth,
@@ -65,28 +61,25 @@ const FaceScanner = ({ onFaceDetected, isProcessing }) => {
         const ctx = canvasRef.current.getContext('2d');
         ctx.clearRect(0, 0, displaySize.width, displaySize.height);
 
-        // Draw bounding boxes on canvas
         faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
       }
 
-      // Edge Case Rules
       if (detections.length === 0) {
         setStatusMessage('No face detected. Please face the camera.');
       } else if (detections.length > 1) {
         setStatusMessage('Multiple faces detected! Ensure only one person is visible.');
       } else {
-        // Exactly ONE face detected -> Extract 128-dimensional Float32 array descriptor
         const singleFace = detections[0];
         const descriptorArray = Array.from(singleFace.descriptor);
 
-        setStatusMessage('Face detected! Verifying identity...');
+        setStatusMessage('Face detected! Saving biometrics to database...');
         
-        // Pass 128D embedding vector to parent controller
+        // Lock execution immediately
         if (onFaceDetected) {
           onFaceDetected(descriptorArray);
         }
       }
-    }, 200);
+    }, 400); // Increased interval to 400ms for stable frame processing
   };
 
   return (
@@ -107,13 +100,12 @@ const FaceScanner = ({ onFaceDetected, isProcessing }) => {
               width: '100%',
               height: '100%',
               pointerEvents: 'none',
-              transform: 'scaleX(-1)', // Match mirrored video feed
+              transform: 'scaleX(-1)',
             }}
           />
         </div>
       )}
 
-      {/* Status Banner */}
       <div
         style={{
           marginTop: '15px',

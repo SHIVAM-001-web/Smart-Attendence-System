@@ -8,9 +8,9 @@ const faceDataSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    // Array of numbers representing the face embedding vector
+    // Array of descriptor arrays (128-D Float vectors)
     descriptors: {
-      type: [[Number]],
+      type: Array,
       required: [true, 'Face descriptor embeddings are required'],
     },
     modelVersion: {

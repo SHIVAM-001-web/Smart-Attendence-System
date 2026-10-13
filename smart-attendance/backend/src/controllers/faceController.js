@@ -9,43 +9,44 @@ export const registerFace = async (req, res) => {
   try {
     const { studentId, descriptors, qualityScore } = req.body;
 
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
     if (!descriptors || !Array.isArray(descriptors) || descriptors.length === 0) {
       return res.status(400).json({ message: 'Valid face descriptors array required' });
     }
 
     const student = await Student.findById(studentId);
     if (!student) {
-      return res.status(404).json({ message: 'Student profile not found' });
+      return res.status(404).json({ message: 'Student profile not found in database' });
     }
 
-    // Check karein ki pehle se face data present hai ya nahi
-    let faceRecord = await FaceData.findOne({ student: studentId });
+    // Direct deletion of old biometric record if exists to bypass unique index conflicts
+    await FaceData.deleteMany({ student: studentId });
 
-    if (faceRecord) {
-      // Existing profile me descriptors update karein
-      faceRecord.descriptors = descriptors;
-      faceRecord.qualityScore = qualityScore || 1.0;
-      await faceRecord.save();
-    } else {
-      // Naya FaceData document banayein
-      faceRecord = await FaceData.create({
-        student: studentId,
-        descriptors,
-        qualityScore: qualityScore || 1.0,
-      });
-    }
+    // Create fresh biometric record
+    const faceRecord = await FaceData.create({
+      student: studentId,
+      descriptors: descriptors,
+      qualityScore: qualityScore || 1.0,
+    });
 
-    // Student profile ka face status update karein
+    // Update student registration status
     student.faceRegistrationStatus = 'REGISTERED';
     await student.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Face biometrics registered successfully',
+      message: 'Face biometrics registered successfully!',
       data: faceRecord,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Face Registration Backend Error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Failed to save face biometrics to database' 
+    });
   }
 };
 
@@ -60,7 +61,6 @@ export const verifyFace = async (req, res) => {
       return res.status(400).json({ message: 'Live face descriptor vector is required' });
     }
 
-    // Sabhi active registered faces populate karein
     const allRegisteredFaces = await FaceData.find().populate({
       path: 'student',
       populate: { path: 'user', select: 'name email' },
@@ -70,7 +70,6 @@ export const verifyFace = async (req, res) => {
       return res.status(404).json({ message: 'No registered face biometrics found in system' });
     }
 
-    // Vector matching perform karein
     const matchResult = findBestMatch(liveDescriptor, allRegisteredFaces, 0.45);
 
     if (!matchResult.isMatched) {
@@ -80,7 +79,6 @@ export const verifyFace = async (req, res) => {
       });
     }
 
-    // Agar expectedStudentId bheja gaya ho toh cross-verify karein
     if (expectedStudentId && matchResult.match.studentId.toString() !== expectedStudentId) {
       return res.status(403).json({
         success: false,
@@ -88,14 +86,14 @@ export const verifyFace = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Face identity verified successfully',
       student: matchResult.match.studentDetails,
       confidence: matchResult.confidence.toFixed(2) + '%',
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -110,12 +108,12 @@ export const getFaceStatus = async (req, res) => {
       return res.status(200).json({ registered: false, message: 'Face data not registered' });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       registered: true,
       updatedAt: faceRecord.updatedAt,
       qualityScore: faceRecord.qualityScore,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };

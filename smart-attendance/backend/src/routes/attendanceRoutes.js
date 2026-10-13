@@ -4,12 +4,12 @@ import {
   getMyAttendanceHistory,
   getAttendanceReport,
 } from '../controllers/attendanceController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
+import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.post('/mark', protect, markAttendance);
 router.get('/my-history', protect, getMyAttendanceHistory);
-router.get('/report', protect, admin, getAttendanceReport);
+router.get('/report', protect, authorize('ADMIN'), getAttendanceReport);
 
 export default router;

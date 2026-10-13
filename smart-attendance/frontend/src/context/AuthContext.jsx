@@ -24,12 +24,18 @@ export const AuthProvider = ({ children }) => {
     checkLoggedIn();
   }, []);
 
-  const login = async (email, password) => {
-    const res = await API.post('/auth/login', { email, password });
+const login = async (email, password) => {
+  // Purana token remove karein taaki stale state backend na jaye
+  localStorage.removeItem('token');
+  
+  const res = await API.post('/auth/login', { email, password });
+  
+  if (res.data.token) {
     localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    setUser(res.data.user);
     return res.data;
-  };
+  }
+};
 
   const logout = () => {
     localStorage.removeItem('token');
